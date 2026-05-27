@@ -1,27 +1,41 @@
-9.6. Proves realitzades 
-Per avaluar el sistema s'han dissenyat tres mètodes de mesura complementaris: rellevància de les respostes, cobertura del catàleg i diversitat dels resultats. Cadascun captura una dimensió diferent del rendiment, i tots cinc mòduls s'han avaluat amb les mateixes 12 consultes per garantir una comparació directa sense biaixos.
-9.6.1 LLM com a Jutge
-Aquest mètode utilitza el model Llama-3.3-70B com a jutge automàtic de la qualitat de les recomanacions. Per a cada consulta, el model rep la llista de fins a 10 pel·lícules retornades per cada mòdul —incloent-hi el títol, l'any, els gèneres i la puntuació Tomatometer— i avalua fins a quin punt la llista en el seu conjunt satisfà la intenció de la consulta original, assignant una puntuació entre 1 i 100.
-El criteri de valoració és estricte i graduat: una puntuació de 100 indica que les 10 pel·lícules són plenament rellevants; 75 reflecteix que els primers resultats són adequats però apareix contingut de farciment irrellevant; 50 implica que la meitat dels resultats fallen; i puntuacions de 25 o inferiors indiquen que el sistema ha ignorat els filtres o ha retornat resultats majoritàriament erronis. Les consultes s'han organitzat en quatre categories per estressar aspectes diferents del sistema: consultes abstractes (to emocional o atmosfèric), consultes amb metadades explícites (director, puntuació, durada), consultes de nínxol (pel·lícules molt específiques o poc conegudes) i consultes contradictòries (condicions incompatibles o impossibles), on el jutge valora positivament si el sistema resol el problema de manera intel·ligent
-Els resultats mostren que el mòdul de Self-Querying i el de recuperació híbrida obtenen les puntuacions més altes en consultes amb metadades explícites. Això s'explica perquè el Self-Querying és capaç d'extreure i aplicar els filtres estructurats presents a la consulta director, any, puntuació reduint l'espai de cerca abans del càlcul de similitud vectorial i eliminant resultats que, tot i ser semànticament propers, no compleixen les condicions lògiques. El mòdul híbrid reforça aquest comportament afegint la component lèxica de BM25, que prioritza documents on apareixen explícitament els termes de la consulta. En consultes abstractes, en canvi, el Combined i el Multi-Query mostren un millor comportament, ja que la generació de múltiples reformulacions semàntiques amplia la cobertura conceptual i permet recuperar pel·lícules que capturen el to emocional demanat sense compartir necessàriament terminologia literal amb la consulta.
+## 9.6. Avaluació Analítica de l'Arquitectura RAG
 
-Figura 24, Gràfic de resultats de LLM-as-a-llutge
-9.6.2 Algorithm Retrieval
-Aquest mètode avalua el volum de documents únics recuperats per cada mòdul sobre el conjunt complet de consultes de prova. L'objectiu no és mesurar la rellevància dels resultats, sinó la cobertura efectiva del corpus: quantes pel·lícules diferents és capaç de recuperar cada mòdul, cosa que indica fins a quin punt cada estratègia explora l'espai de documents disponibles.
-El procediment consisteix a executar cada consulta sobre cada mòdul sol·licitant fins a 10 resultats, i acumular els títols retornats en un conjunt sense duplicats. Al final del procés, el recompte de títols únics per mòdul ofereix una mesura de l'amplitud de la recuperació. Es tracta de 12 consultes per 5 mòduls, amb un màxim teòric de 120 pel·lícules úniques per mòdul si no hi hagués cap solapament entre resultats.
+El rendiment del sistema de recuperació s'ha avaluat mitjançant una bateria de proves dissenyades per mesurar tres dimensions crítiques del pipeline: **rellevància de les respostes**, **recall (cobertura) del catàleg** i **dispersió geomètrica (diversitat) dels resultats**. 
 
-Figura 25, Gràfic de resultats del Algorithm Retrieval
-En aquesta avaluació destaca el mòdul de Parent Retrieval, que obté la cobertura més alta. Aquesta superioritat s'explica per la seva estratègia de reconstrucció de context: en lloc de retornar fragments individuals, el sistema agrupa múltiples ressenyes d'una mateixa pel·lícula i construeix un document pare enriquit. Això permet que consultes amb formulacions diverses activin entitats que un sistema basat en fragments individuals podria no recuperar, augmentant la diversitat dels títols retornats. El mòdul Hybrid obté també bons resultats en cobertura, ja que la combinació de cerca semàntica i lèxica li permet activar documents des de dos angles complementaris, reduint els punts cecs de cadascun dels mètodes per separat.
-9.6.3 Intra-List Diversity (ILD)
-El tercer mètode mesura la diversitat intra-llista (Intra-List Diversity, ILD), una mètrica que quantifica fins a quin punt les pel·lícules recomanades dins d'una mateixa llista són diverses entre elles. L'objectiu no és avaluar si els resultats són rellevants, sinó si el sistema és capaç de retornar un conjunt variat o si tendeix a concentrar les recomanacions en un perfil molt similar de pel·lícula.
-El càlcul es basa en la distància geomètrica mitjana entre tots els parells de pel·lícules d'una llista, combinant tres atributs ponderats: gènere cinematogràfic (pes del 50%), director (pes del 30%) i any d'estrena (pes del 20%). La distància entre gèneres i directors es calcula mitjançant la distància de Jaccard sobre els conjunts d'etiquetes, mentre que la distància temporal es normalitza sobre una finestra màxima de 40 anys. El resultat final és un valor entre 0 i 1, on valors propers a 0 indiquen llistes molt homogènies i valors propers a 1 indiquen màxima diversitat. Per a cada consulta i mòdul es genera a més una matriu de distàncies 10×10 que permet visualitzar el grau de similitud entre cada parell de pel·lícules retornades.
-Les consultes s'han seleccionat deliberadament del tipus concret, amb filtres explícits de director, gènere o dècada, precisament perquè en aquest escenari l'algorisme queda acotat per les restriccions i s'espera un ILD baix: si el sistema funciona correctament, les pel·lícules retornades haurien de ser similars entre elles perquè totes compleixen les mateixes condicions. Això converteix l'ILD en una mètrica de coherència: un ILD molt alt en una consulta concreta indicaria que el sistema ha ignorat els filtres i ha retornat resultats dispersos.
+Per garantir una avaluació determinista i sense biaixos, els cinc mòduls de retrieval s'han sotmès a les mateixes 12 queries d'estrès, dissenyades per forçar diferents vectors de cerca (metadades explícites, semàntica abstracta, nínxol i lògica contradictòria).
 
-Figura 26, Gràfic de resultats de IDL.
+### 9.6.1. Avaluació Heurística (LLM-as-a-Judge)
+Aquest mòdul utilitza `Llama-3.3-70B` com a avaluador automatitzat per quantificar la precisió contextual de les recomanacions.
 
-Els resultats d'aquesta avaluació posen en relleu una diferència clara entre mòduls. El Combined i el Multi-Query mostren els valors d'ILD més variables entre categories de consulta, cosa que reflecteix la seva sensibilitat als atributs explícits: quan la consulta conté filtres de director o any, aquests mòduls tendeixen a concentrar els resultats en un perfil coherent (ILD baix), mentre que en absència de restriccions exploren un espai més ampli (ILD més alt). Aquesta capacitat d’adaptació és especialment valuosa en un sistema de recomanació real, on l'usuari pot alternar entre consultes molt concretes i peticions obertes.
+* **Metodologia:** L'avaluador processa els top-K documents (K=10) recuperats per cada mòdul —incloent títol, any, metadades de gènere i mètriques de validació (Tomatometer)— i computa una puntuació (1-100) basada en la satisfacció global de la intenció de cerca.
+* **Criteris de penalització:** Es penalitza severament (≤ 25) la pèrdua de filtres durs o la inclusió de soroll en l'espai vectorial, mentre que s'atorga la màxima puntuació (100) a una llista de resultats amb alta precisió semàntica i lògica.
+* **Anàlisi de resultats:** * Els algorismes de **Self-Querying** i **Hybrid Search** maximitzen el rendiment en consultes amb metadades explícites. Això s'aconsegueix mitjançant l'extracció de paràmetres i l'aplicació de filtres estructurats pre-similitud, reduint l'espai de cerca vectorial i mitigant el risc de falsos positius semàntics.
+  * Els mòduls **Combined** i **Multi-Query** mostren un rendiment superior en queries abstractes. L'expansió del latent space mitjançant reformulació de consultes permet capturar connexions emocionals o atmosfèriques sense dependre d'un mapatge lèxic exacte.
 
 
-Per inizilitzar : 
+### 9.6.2. Exploració i Cobertura del Corpus (Algorithm Retrieval)
+Aquesta mètrica quantifica el volum de documents únics activats per cada mòdul, avaluant l'eficiència de l'algorisme en l'exploració de l'espai de dades disponible (mesura proxy del recall del sistema).
 
-streamlit run 
+* **Metodologia:** Execució en batch de les 12 queries sobre els 5 mòduls, agregant els resultats en un set no duplicat. El límit teòric de cobertura se situa en 120 documents per mòdul (assumint una intersecció nul·la).
+* **Anàlisi de resultats:**
+  * El mòdul de **Parent Retrieval** lidera aquesta mètrica. La seva arquitectura d'indexació per reconstrucció de context (agregació de chunks fill cap a un document pare) amplia la superfície d'activació vectorial, evitant la pèrdua de context pròpia de la partició de dades tradicional.
+  * El mòdul **Hybrid** també manté una taxa de descobriment alta gràcies a la fusió de l'scoring dens (embeddings) i l'espars (BM25), minimitzant els punts cecs estructurals de cada mètode aïllat.
+
+
+### 9.6.3. Variància Intra-Llista (Intra-List Diversity - ILD)
+L'ILD mesura la dispersió dels documents recuperats dins d'un mateix set de resultats, quantificant la capacitat del sistema per evitar el col·lapse de diversitat.
+
+* **Funció de distància:** Es calcula la distància geomètrica mitjana entre tots els parells del top-K mitjançant una funció de costos ponderada:
+  * **Gènere (50%) i Director (30%):** Avaluats mitjançant distància de Jaccard sobre els conjunts d'etiquetes.
+  * **Any d'estrena (20%):** Avaluat mitjançant distància temporal normalitzada sobre una finestra estàndard de 40 anys.
+* **Anàlisi de resultats:** La mètrica oscil·la entre 0 (homogeneïtat total) i 1 (màxima dispersió). Els mòduls **Combined** i **Multi-Query** demostren la variància d'ILD més eficient: forcen la convergència (ILD baix) en presència de filtres durs definits per l'usuari, i maximitzen l'exploració (ILD alt) en sol·licituds no restringides.
+
+
+---
+
+## Desplegament de l'Entorn d'Avaluació
+
+Per inicialitzar el dashboard analític desenvolupat amb Streamlit, assegureu-vos de tenir l'entorn virtual activat i executeu la següent instrucció a la línia de comandes:
+
+```bash
+streamlit run app.py
